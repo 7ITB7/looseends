@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,"><title>Loose Ends — unreleased mortgage scanner</title>
+<style>
+/* LOOSE ENDS — "recorder's ledger" style: green ledger paper, red ink stamps */
+:root{--bg:#eef3ea;--card:#fbfdf8;--ink:#1d2a22;--ink2:#5b6b60;--rule:#c9d6c4;--red:#b3261e;--grn:#2e7d4f;--amb:#a86b00}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,Segoe UI,Roboto,sans-serif;background-image:repeating-linear-gradient(transparent 0 27px,#dbe5d6 27px 28px)}
+header{background:var(--ink);color:#fff;padding:14px}h1{margin:0;font:700 22px Georgia,serif;letter-spacing:.04em}.sub{font-size:12px;opacity:.75}
+main{max-width:780px;margin:0 auto;padding:12px}
+h2{font:700 13px sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--red);margin:20px 0 8px;border-bottom:2px solid var(--red);padding-bottom:3px}
+label{display:block;font-size:12px;font-weight:700;color:var(--ink2);margin:10px 0 3px;text-transform:uppercase;letter-spacing:.05em}
+textarea,input,select{width:100%;min-height:44px;border:1px solid var(--ink2);border-radius:5px;padding:8px;background:#fff;font:14px/1.4 inherit}
+textarea{min-height:150px;font-family:ui-monospace,Menlo,monospace;font-size:13px}
+.btn{min-height:44px;border:0;border-radius:5px;background:var(--ink);color:#fff;font-weight:700;padding:10px 14px;cursor:pointer}
+.btn.r{background:var(--red)}.btn.g{background:transparent;color:var(--ink);border:1px solid var(--ink2)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.note{background:var(--card);border-left:4px solid var(--amb);padding:9px 11px;font-size:13.5px;margin:10px 0}
+.m{background:var(--card);border:1px solid var(--rule);border-left:6px solid var(--grn);border-radius:4px;padding:10px;margin:8px 0}
+.m.open{border-left-color:var(--red)}.m.maybe{border-left-color:var(--amb)}
+.stamp{display:inline-block;border:2px solid;padding:2px 7px;font:800 11px sans-serif;letter-spacing:.1em;transform:rotate(-2deg);margin-left:6px}
+.open .stamp{color:var(--red)}.maybe .stamp{color:var(--amb)}.m:not(.open):not(.maybe) .stamp{color:var(--grn)}
+.muted{color:var(--ink2);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}td,th{border-bottom:1px solid var(--rule);padding:5px 4px;text-align:left;vertical-align:top}
+td input,td select{min-height:34px;padding:4px;font-size:12.5px}
+.lead{background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:9px;margin:6px 0}
+@media(max-width:480px){.grid{grid-template-columns:1fr}}
+@media print{header,.noprint{display:none!important}body{background:#fff}}
+</style></head><body>
+<header><h1>LOOSE ENDS</h1><div class="sub">Finds mortgages that were paid off but never released in the land records</div></header>
+<main>
+<div class="note noprint"><b>How it works:</b> search a property or owner in the town's online land records, copy the index results (or download them as CSV), and paste them here. The app pairs each mortgage with its release and flags the ones still open, especially when the house has sold since. Public records only; never paste client files from your firms.</div>
+<h2>1 · Property</h2>
+<div class="grid"><div><label>Town</label><input id="town" placeholder="Coventry"></div><div><label>Address or owner</label><input id="prop" placeholder="12 Main St / SMITH JOHN"></div></div>
+<div class="row noprint"><a class="btn g" id="srch" target="_blank" rel="noopener" href="#">Find this town's land records ↗</a></div>
+<h2>2 · Paste the land record index</h2>
+<label>One document per line (date, type, book/page, parties). CSV works too.</label>
+<textarea id="raw" placeholder="03/15/2009  MORTGAGE  0512/0221  SMITH JOHN  WELLS FARGO BANK NA&#10;06/02/2016  WARRANTY DEED  0644/0101  SMITH JOHN  DOE JANE&#10;07/20/2016  RELEASE OF MORTGAGE  0645/0300  WELLS FARGO BANK NA  SMITH JOHN  REF 0512/0221"></textarea>
+<div class="row noprint"><button class="btn r" id="go">Scan for loose ends</button><button class="btn g" id="demo">Load example</button></div>
+<div id="out"></div>
+<h2>Leads</h2><div id="leads" class="muted"></div>
+<div class="row noprint"><button class="btn g" id="csv">Download leads CSV</button><button class="btn g" id="bk">Backup</button><label class="btn g" style="margin:0;text-transform:none;letter-spacing:0;font-size:14px">Restore<input type="file" id="rs" hidden accept=".json"></label></div>
+<h2 class="noprint">What to do with an open one</h2>
+<div class="note noprint"><ol style="margin:0;padding-left:18px"><li>Double-check the index yourself. Releases are sometimes indexed under a different name, or a later assignment moved the mortgage to another lender.</li><li>Open mortgages before a <b>later sale</b> are the strongest leads: the loan was almost certainly paid at closing but the lender never recorded the release.</li><li>Bring it to the closing attorney or title company on the next deal, or to the current owner. Getting a release recorded is legal work: the attorney requests it from the lender (or its successor), and state law gives owners remedies when lenders don't release paid-off mortgages.</li><li>You find and document; the attorney handles it. Don't give legal advice yourself.</li></ol></div>
+</main>
+<script>
+'use strict';
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const st={g(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},s(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let leads=st.g('le.leads',[]),docs=[];
+const upd=()=>{$('#srch').href='https://www.google.com/search?q='+encodeURIComponent(($('#town').value||'')+' CT land records online search')};
+$('#town').oninput=upd;upd();
+const TYPES=[['release',/\b(RELEASE|REL OF MTG|SATISFACTION|DISCHARGE|REL MTG|RLS)\b/i],['assign',/\bASSIGN/i],['mortgage',/\b(MORTGAGE|MTG|OPEN.?END|HELOC|DEED OF TRUST)\b/i],['deed',/\b(WARRANTY DEED|QUIT ?CLAIM|QUITCLAIM|EXECUTOR'?S? DEED|FIDUCIARY DEED|TRUSTEE'?S? DEED|FORECLOSURE DEED|CERTIFICATE OF FORECLOSURE|DEED)\b/i]];
+function parse(t){return t.split(/\r?\n/).map(l=>l.trim()).filter(l=>l.length>8).map((l,i)=>{
+  const d=(l.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/)||l.match(/\b(\d{4})-(\d{2})-(\d{2})\b/));
+  let date=null;if(d){date=d[0].includes('-')&&d[1].length===4?new Date(d[0]):new Date((+d[3]<100?(+d[3]>40?1900:2000)+ +d[3]:+d[3]),+d[1]-1,+d[2])}
+  let type='other';for(const [k,re] of TYPES)if(re.test(l)){type=k;break}
+  const bps=[...l.matchAll(/\b(\d{2,5})\s*[\/:-]\s*(\d{1,5})\b/g)].map(m=>m[1].replace(/^0+/,'')+'/'+m[2].replace(/^0+/,'')).filter(bp=>!/\//.test(bp)||true);
+  const dateStr=d?d[0]:'';const bpClean=bps.filter(b=>!dateStr.includes(b.split('/')[0]+'/'+b.split('/')[1])&&!(d&&b===(String(+d[1])+'/'+String(+d[2]))));
+  const ref=(l.match(/\b(?:REF|RE|BK|BOOK|VOL)\b[^\d]{0,6}(\d{2,5})\s*[\/:,PG.\s-]*\s*(\d{1,5})/i));
+  const lender=(l.toUpperCase().match(/[A-Z0-9&.,' ]*(BANK|MORTGAGE|LENDING|FINANCIAL|CREDIT UNION|SAVINGS|FEDERAL|LOAN|MERS|HOME LOANS|TRUST|FUNDING|CAPITAL)[A-Z0-9&.,' ]*/)||[''])[0].trim().replace(/\s+/g,' ');
+  return {i,line:l,date,type,bp:bpClean[0]||'',ref:ref?ref[1].replace(/^0+/,'')+'/'+ref[2].replace(/^0+/,''):(type==='release'&&bpClean[1]?bpClean[1]:''),lender}})}
+const yrs=d=>d?((Date.now()-d)/3.156e10):null;
+const fmt=d=>d&&!isNaN(d)?d.toLocaleDateString():'?';
+const lw=s=>new Set(String(s).toUpperCase().replace(/[^A-Z ]/g,' ').split(/\s+/).filter(w=>w.length>3&&!/^(BANK|NATIONAL|ASSOCIATION|MORTGAGE|COMPANY|CORP|THE)$/.test(w)));
+function analyze(){
+  const M=docs.filter(d=>d.type==='mortgage'),R=docs.filter(d=>d.type==='release'),D=docs.filter(d=>d.type==='deed');const used=new Set();
+  return M.map(m=>{let rel=null,how='';
+    if(m.bp)rel=R.find(r=>!used.has(r.i)&&(r.ref===m.bp||r.line.replace(/\s/g,'').includes(m.bp.replace('/',''))&&r.bp!==m.bp));
+    if(rel)how='release refers to book/page '+m.bp;
+    if(!rel&&m.lender){const lm=lw(m.lender);rel=R.filter(r=>!used.has(r.i)&&r.date>=m.date&&[...lw(r.line)].some(w=>lm.has(w))).sort((a,b)=>a.date-b.date)[0];if(rel)how='release by a matching lender name (check it)'}
+    if(rel)used.add(rel.i);
+    const later=D.filter(d=>d.date&&m.date&&d.date>m.date).sort((a,b)=>a.date-b.date)[0];
+    const age=yrs(m.date);let status=rel?'released':(later||age>12)?'open':'maybe';
+    return {m,rel,how,later,age,status}})}
+function draw(){const A=analyze();if(!docs.length){$('#out').innerHTML='';return}
+  const open=A.filter(a=>a.status==='open');
+  $('#out').innerHTML='<h2>Results</h2><p class="muted">'+docs.length+' documents read: '+['mortgage','release','assign','deed'].map(t=>docs.filter(d=>d.type===t).length+' '+t+(t==='assign'?'ments':'s')).join(', ')+'. <b>'+open.length+' likely loose end'+(open.length===1?'':'s')+'.</b></p>'+
+  (A.length?A.map(a=>'<div class="m '+(a.status==='open'?'open':a.status==='maybe'?'maybe':'')+'"><b>Mortgage '+esc(fmt(a.m.date))+(a.m.bp?' · Bk/Pg '+esc(a.m.bp):'')+'</b><span class="stamp">'+(a.status==='open'?'NO RELEASE FOUND':a.status==='maybe'?'STILL OPEN?':'RELEASED')+'</span><div class="muted">'+esc(a.m.lender||'lender not detected')+'</div>'+
+   (a.rel?'<div class="muted">Released '+esc(fmt(a.rel.date))+(a.rel.bp?' at '+esc(a.rel.bp):'')+' — '+esc(a.how)+'</div>':
+   '<div style="font-size:13.5px;margin-top:4px">'+(a.later?'⚠ The property was sold or transferred on <b>'+esc(fmt(a.later.date))+'</b> ('+esc(a.later.line.slice(0,70))+'…), but no release of this mortgage is in what you pasted. It was very likely paid at that closing and never released.':a.age>12?'⚠ '+Math.floor(a.age)+' years old with no release. Most mortgages are refinanced or paid well before then.':'Recent mortgage with no release. Probably still being paid. Not a lead yet.')+'</div>'+
+   '<div class="row noprint"><button class="btn sm g" data-lead="'+a.m.i+'">Save as lead</button></div>')+'</div>').join(''):'<div class="note">No mortgages found. Check that the document types are in what you pasted.</div>')+
+  '<details class="noprint" style="margin-top:10px"><summary class="muted" style="cursor:pointer;min-height:40px">Fix how lines were read ('+docs.length+')</summary><table><tr><th>Date</th><th>Type</th><th>Bk/Pg</th><th>Refers to</th></tr>'+docs.map(d=>'<tr><td>'+esc(fmt(d.date))+'</td><td><select data-t="'+d.i+'">'+['mortgage','release','assign','deed','other'].map(t=>'<option'+(t===d.type?' selected':'')+'>'+t+'</option>').join('')+'</select></td><td><input data-bp="'+d.i+'" value="'+esc(d.bp)+'"></td><td><input data-ref="'+d.i+'" value="'+esc(d.ref)+'"></td></tr><tr><td colspan="4" class="muted" style="font-size:11.5px">'+esc(d.line)+'</td></tr>').join('')+'</table></details>';
+  window._A=A}
+$('#out').addEventListener('change',e=>{const t=e.target,id=t.dataset.t??t.dataset.bp??t.dataset.ref;if(id==null)return;const d=docs.find(x=>x.i===+id);if(t.dataset.t!=null)d.type=t.value;if(t.dataset.bp!=null)d.bp=t.value.trim();if(t.dataset.ref!=null)d.ref=t.value.trim();draw()});
+$('#out').addEventListener('click',e=>{const id=e.target.dataset.lead;if(id==null)return;const a=window._A.find(x=>x.m.i===+id);
+  leads.unshift({at:new Date().toISOString(),town:$('#town').value,prop:$('#prop').value,date:fmt(a.m.date),bp:a.m.bp,lender:a.m.lender,later:a.later?fmt(a.later.date):'',status:'New',notes:''});st.s('le.leads',leads);drawLeads();e.target.textContent='Saved ✓';e.target.disabled=true});
+$('#go').onclick=()=>{docs=parse($('#raw').value);docs.sort((a,b)=>(a.date||0)-(b.date||0));if(!docs.length){alert('Paste the index lines first');return}draw();st.s('le.last',{town:$('#town').value,prop:$('#prop').value,raw:$('#raw').value})};
+$('#demo').onclick=()=>{$('#town').value='Coventry';$('#prop').value='12 EXAMPLE RD / SMITH JOHN';$('#raw').value='03/15/2004  MORTGAGE  0412/0221  SMITH JOHN  FIRST NATIONAL BANK\n11/02/2009  MORTGAGE  0498/0033  SMITH JOHN  WELLS FARGO BANK NA\n12/01/2009  RELEASE OF MORTGAGE  0499/0120  FIRST NATIONAL BANK  SMITH JOHN  REF 0412/0221\n06/02/2016  WARRANTY DEED  0644/0101  SMITH JOHN  DOE JANE\n06/02/2016  MORTGAGE  0644/0105  DOE JANE  QUICKEN LOANS INC';upd();$('#go').click()};
+function drawLeads(){$('#leads').innerHTML=leads.length?leads.map((l,i)=>'<div class="lead"><b>'+esc(l.town)+' · '+esc(l.prop)+'</b><div class="muted">Mortgage '+esc(l.date)+(l.bp?' Bk/Pg '+esc(l.bp):'')+' · '+esc(l.lender||'?')+(l.later?' · sold '+esc(l.later):'')+'</div><div class="row"><select data-ls="'+i+'" style="max-width:160px;min-height:36px">'+['New','Verified','Sent to attorney','Released','Dead end'].map(s=>'<option'+(s===l.status?' selected':'')+'>'+s+'</option>').join('')+'</select><button class="btn g" data-ld="'+i+'" style="min-height:36px">Delete</button></div><input data-ln="'+i+'" value="'+esc(l.notes)+'" placeholder="Notes" style="margin-top:6px"></div>').join(''):'No leads yet.'}
+$('#leads').addEventListener('change',e=>{const i=e.target.dataset.ls;if(i!=null){leads[+i].status=e.target.value;st.s('le.leads',leads)}});
+$('#leads').addEventListener('input',e=>{const i=e.target.dataset.ln;if(i!=null){leads[+i].notes=e.target.value;st.s('le.leads',leads)}});
+$('#leads').addEventListener('click',e=>{const i=e.target.dataset.ld;if(i!=null&&confirm('Delete lead?')){leads.splice(+i,1);st.s('le.leads',leads);drawLeads()}});
+const dl=(n,t,ty)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:ty}));a.download=n;document.body.appendChild(a);a.click();a.remove()};
+$('#csv').onclick=()=>dl('loose-ends-leads.csv',['town,property,mortgage date,book/page,lender,sold after,status,notes'].concat(leads.map(l=>[l.town,l.prop,l.date,l.bp,l.lender,l.later,l.status,l.notes].map(x=>'"'+String(x||'').replace(/"/g,'""')+'"').join(','))).join('\n'),'text/csv');
+$('#bk').onclick=()=>dl('loose-ends-backup.json',JSON.stringify(leads),'application/json');
+$('#rs').onchange=async e=>{try{const j=JSON.parse(await e.target.files[0].text());if(Array.isArray(j)){leads=j;st.s('le.leads',leads);drawLeads()}}catch(_){alert('Not a backup')}};
+const last=st.g('le.last',null);if(last){$('#town').value=last.town||'';$('#prop').value=last.prop||'';$('#raw').value=last.raw||'';upd()}
+drawLeads();
+</script></body></html>
